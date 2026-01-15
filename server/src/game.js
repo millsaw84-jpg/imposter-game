@@ -113,26 +113,24 @@ export function calculateResults(room) {
     voteCounts[v.votedId] = (voteCounts[v.votedId] || 0) + 1;
   });
 
-  let maxVotes = 0;
-  let votedOut = null;
+  const imposterIds = room.imposterIds || [];
+  const totalVotes = room.votes.length;
 
-  Object.entries(voteCounts).forEach(([playerId, count]) => {
-    if (count > maxVotes) {
-      maxVotes = count;
-      votedOut = playerId;
-    }
+  // Count votes against any imposter
+  let votesAgainstImposters = 0;
+  imposterIds.forEach(imposterId => {
+    votesAgainstImposters += voteCounts[imposterId] || 0;
   });
 
-  const imposterIds = room.imposterIds || [];
-  const votedOutIsImposter = imposterIds.includes(votedOut);
-  const impostersCaught = votedOutIsImposter ? 1 : 0;
+  // Imposters are caught if majority voted for any imposter
+  const impostersCaught = votesAgainstImposters > totalVotes / 2;
 
   // Scoring
   players.forEach(p => {
     const isImposter = imposterIds.includes(p.id);
     if (isImposter) {
       // Imposters get points if they weren't caught
-      if (!votedOutIsImposter) {
+      if (!impostersCaught) {
         p.score += 15;
       }
     } else {
@@ -153,10 +151,11 @@ export function calculateResults(room) {
 
   return {
     voteCounts,
-    votedOut,
+    votesAgainstImposters,
+    totalVotes,
     imposterIds,
     imposterNames,
-    imposterCaught: votedOutIsImposter,
+    imposterCaught: impostersCaught,
     word: room.currentWord,
     scores: players.map(p => ({
       id: p.id,
