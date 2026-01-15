@@ -8,6 +8,12 @@ export function startGame(room) {
     return { error: 'Need at least 3 players to start' };
   }
 
+  // Validate imposter count
+  const maxImposters = Math.floor(players.length / 2);
+  if (room.settings.imposterCount > maxImposters) {
+    room.settings.imposterCount = maxImposters;
+  }
+
   room.currentRound = 1;
   room.players.forEach(p => p.score = 0);
 
@@ -16,15 +22,18 @@ export function startGame(room) {
 
 export function startRound(room) {
   const players = getConnectedPlayers(room);
+  const imposterCount = room.settings.imposterCount || 1;
 
-  const imposterIndex = Math.floor(Math.random() * players.length);
-  const imposter = players[imposterIndex];
+  // Shuffle players and pick imposters
+  const shuffled = [...players].sort(() => Math.random() - 0.5);
+  const imposters = shuffled.slice(0, imposterCount);
+  const imposterIds = imposters.map(p => p.id);
 
   const word = getRandomWord(room.category);
 
   room.state = 'hints';
   room.currentWord = word;
-  room.imposterId = imposter.id;
+  room.imposterIds = imposterIds;
   room.currentTurnIndex = 0;
   room.hints = [];
   room.votes = [];
@@ -32,11 +41,11 @@ export function startRound(room) {
 
   return {
     word,
-    imposterId: imposter.id,
+    imposterIds,
     players: players.map(p => ({
       id: p.id,
       name: p.name,
-      isImposter: p.id === imposter.id
+      isImposter: imposterIds.includes(p.id)
     }))
   };
 }
@@ -114,16 +123,22 @@ export function calculateResults(room) {
     }
   });
 
-  const imposterCaught = votedOut === room.imposterId;
+  const imposterIds = room.imposterIds || [];
+  const votedOutIsImposter = imposterIds.includes(votedOut);
+  const impostersCaught = votedOutIsImposter ? 1 : 0;
 
+  // Scoring
   players.forEach(p => {
-    if (p.id === room.imposterId) {
-      if (!imposterCaught) {
+    const isImposter = imposterIds.includes(p.id);
+    if (isImposter) {
+      // Imposters get points if they weren't caught
+      if (!votedOutIsImposter) {
         p.score += 15;
       }
     } else {
+      // Non-imposters get points for voting correctly
       const vote = room.votes.find(v => v.voterId === p.id);
-      if (vote && vote.votedId === room.imposterId) {
+      if (vote && imposterIds.includes(vote.votedId)) {
         p.score += 10;
       }
     }
@@ -131,12 +146,17 @@ export function calculateResults(room) {
 
   room.state = 'reveal';
 
+  // Get imposter names
+  const imposterNames = players
+    .filter(p => imposterIds.includes(p.id))
+    .map(p => p.name);
+
   return {
     voteCounts,
     votedOut,
-    imposterId: room.imposterId,
-    imposterName: players.find(p => p.id === room.imposterId)?.name,
-    imposterCaught,
+    imposterIds,
+    imposterNames,
+    imposterCaught: votedOutIsImposter,
     word: room.currentWord,
     scores: players.map(p => ({
       id: p.id,
@@ -147,14 +167,15 @@ export function calculateResults(room) {
 }
 
 export function imposterGuess(room, playerId, guess) {
-  if (playerId !== room.imposterId) {
-    return { error: 'Only the imposter can guess' };
+  const imposterIds = room.imposterIds || [];
+  if (!imposterIds.includes(playerId)) {
+    return { error: 'Only imposters can guess' };
   }
 
   const correct = guess.toLowerCase().trim() === room.currentWord.toLowerCase();
 
   if (correct) {
-    const imposter = room.players.find(p => p.id === room.imposterId);
+    const imposter = room.players.find(p => p.id === playerId);
     if (imposter) {
       imposter.score += 25;
     }

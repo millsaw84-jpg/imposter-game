@@ -46,6 +46,18 @@ export default function Lobby({ socket }) {
     });
   };
 
+  const handleImposterCountChange = (count) => {
+    if (!gameState.isHost) return;
+
+    socket.emit('set-imposter-count', { count }, (response) => {
+      if (response?.success) {
+        updateState({ imposterCount: count });
+      }
+    });
+  };
+
+  const maxImposters = Math.max(1, Math.floor(gameState.players.length / 2));
+
   const startGame = () => {
     socket.emit('start-game', (response) => {
       if (!response.success) {
@@ -145,12 +157,41 @@ export default function Lobby({ socket }) {
           </div>
         )}
 
+        {gameState.isHost && (
+          <div className="bg-gray-800/50 backdrop-blur rounded-xl p-6 shadow-2xl mb-4">
+            <h3 className="text-lg font-semibold mb-4 text-gray-300">Number of Imposters</h3>
+            <div className="flex gap-2 justify-center">
+              {[...Array(maxImposters)].map((_, i) => (
+                <button
+                  key={i + 1}
+                  onClick={() => handleImposterCountChange(i + 1)}
+                  className={`w-12 h-12 rounded-lg text-lg font-bold transition-all ${
+                    gameState.imposterCount === i + 1
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50'
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+            {gameState.players.length < 4 && (
+              <p className="text-center text-gray-500 text-xs mt-2">
+                Add more players to enable multiple imposters
+              </p>
+            )}
+          </div>
+        )}
+
         {!gameState.isHost && (
           <div className="bg-gray-800/50 backdrop-blur rounded-xl p-4 mb-4 text-center">
             <p className="text-gray-400">
               Category: <span className="text-white font-medium">
                 {CATEGORIES.find(c => c.id === gameState.category)?.name || gameState.category}
               </span>
+            </p>
+            <p className="text-gray-400 mt-1">
+              Imposters: <span className="text-red-400 font-medium">{gameState.imposterCount}</span>
             </p>
           </div>
         )}

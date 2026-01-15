@@ -21,7 +21,7 @@ export function createRoom(hostId, hostName) {
     currentRound: 0,
     totalRounds: 5,
     currentWord: null,
-    imposterId: null,
+    imposterIds: [],
     currentTurnIndex: 0,
     hints: [],
     votes: [],
@@ -30,7 +30,8 @@ export function createRoom(hostId, hostName) {
     settings: {
       hintTime: 15,
       discussionTime: 60,
-      voteTime: 30
+      voteTime: 30,
+      imposterCount: 1
     }
   };
 

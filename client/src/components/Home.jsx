@@ -6,13 +6,15 @@ export default function Home({ socket, isConnected }) {
   const [playerName, setPlayerName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
-  const [mode, setMode] = useState(null);
+  const [gameMode, setGameMode] = useState(null); // null, 'online', 'local'
+  const [mode, setMode] = useState(null); // null, 'create', 'join'
   const { gameState, updateState } = useGame();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (gameState.pendingJoinCode) {
       setJoinCode(gameState.pendingJoinCode);
+      setGameMode('online');
       setMode('join');
       updateState({ pendingJoinCode: null });
     }
@@ -74,13 +76,59 @@ export default function Home({ socket, isConnected }) {
     });
   };
 
+  // Game mode selection
+  if (gameMode === null) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <div className="max-w-md w-full">
+          <h1 className="text-5xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">
+            IMPOSTER
+          </h1>
+          <p className="text-gray-400 text-center mb-8">Find the imposter... or blend in</p>
+
+          <div className="space-y-4">
+            <button
+              onClick={() => setGameMode('online')}
+              className="w-full p-6 bg-gray-800/50 backdrop-blur rounded-xl shadow-2xl hover:bg-gray-700/50 transition-all border-2 border-transparent hover:border-purple-500"
+            >
+              <div className="text-2xl mb-2">🌐</div>
+              <h3 className="text-xl font-bold mb-1">Online</h3>
+              <p className="text-gray-400 text-sm">Play with friends on different devices</p>
+            </button>
+
+            <button
+              onClick={() => navigate('/pass-and-play')}
+              className="w-full p-6 bg-gray-800/50 backdrop-blur rounded-xl shadow-2xl hover:bg-gray-700/50 transition-all border-2 border-transparent hover:border-pink-500"
+            >
+              <div className="text-2xl mb-2">📱</div>
+              <h3 className="text-xl font-bold mb-1">Pass & Play</h3>
+              <p className="text-gray-400 text-sm">Play in person on one device</p>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Online mode
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <div className="max-w-md w-full">
+        <button
+          onClick={() => {
+            setGameMode(null);
+            setMode(null);
+            setError('');
+          }}
+          className="mb-6 text-gray-400 hover:text-white"
+        >
+          ← Back
+        </button>
+
         <h1 className="text-5xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">
           IMPOSTER
         </h1>
-        <p className="text-gray-400 text-center mb-8">Find the imposter... or blend in</p>
+        <p className="text-gray-400 text-center mb-8">Online Mode</p>
 
         {!isConnected && (
           <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 mb-4 text-center">

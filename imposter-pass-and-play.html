@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Imposter - Pass & Play</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: linear-gradient(to bottom right, #111827, #581c87, #111827); }
+  </style>
+</head>
+<body class="min-h-screen text-white">
+  <div id="app"></div>
+
+  <script>
+    const WORDS = {
+      animals: ['elephant', 'giraffe', 'penguin', 'dolphin', 'kangaroo', 'octopus', 'butterfly', 'crocodile', 'peacock', 'koala', 'flamingo', 'cheetah', 'panda', 'gorilla', 'hedgehog'],
+      food: ['pizza', 'sushi', 'hamburger', 'tacos', 'pasta', 'chocolate', 'pancakes', 'ice cream', 'sandwich', 'curry', 'lasagna', 'burrito', 'ramen', 'croissant', 'cheesecake'],
+      movies: ['titanic', 'avatar', 'inception', 'frozen', 'jaws', 'matrix', 'gladiator', 'shrek', 'joker', 'coco', 'up', 'rocky', 'psycho', 'alien', 'parasite'],
+      countries: ['japan', 'brazil', 'egypt', 'australia', 'canada', 'italy', 'mexico', 'india', 'france', 'germany', 'spain', 'china', 'greece', 'sweden', 'argentina'],
+      occupations: ['firefighter', 'astronaut', 'chef', 'doctor', 'pilot', 'teacher', 'detective', 'architect', 'photographer', 'scientist', 'musician', 'journalist', 'veterinarian', 'lawyer', 'programmer'],
+      sports: ['basketball', 'tennis', 'swimming', 'skateboarding', 'golf', 'boxing', 'surfing', 'volleyball', 'gymnastics', 'skiing', 'cricket', 'rugby', 'cycling', 'archery', 'fencing']
+    };
+
+    const CATEGORIES = [
+      { id: 'animals', name: 'Animals', icon: '🐾' },
+      { id: 'food', name: 'Food', icon: '🍕' },
+      { id: 'movies', name: 'Movies', icon: '🎬' },
+      { id: 'countries', name: 'Countries', icon: '🌍' },
+      { id: 'occupations', name: 'Jobs', icon: '👔' },
+      { id: 'sports', name: 'Sports', icon: '⚽' }
+    ];
+
+    let state = {
+      phase: 'setup',
+      playerCount: 4,
+      imposterCount: 1,
+      category: 'animals',
+      players: [],
+      currentPlayerIndex: 0,
+      showRole: false,
+      word: '',
+      imposterIds: [],
+      hints: [],
+      currentHint: '',
+      votes: {},
+      round: 1,
+      scores: {}
+    };
+
+    function render() {
+      const app = document.getElementById('app');
+      app.innerHTML = getHTML();
+      attachEvents();
+    }
+
+    function getHTML() {
+      const { phase } = state;
+
+      if (phase === 'setup') return setupHTML();
+      if (phase === 'names') return namesHTML();
+      if (phase === 'reveal') return revealHTML();
+      if (phase === 'hints') return hintsHTML();
+      if (phase === 'discussion') return discussionHTML();
+      if (phase === 'voting') return votingHTML();
+      if (phase === 'results') return resultsHTML();
+      return '';
+    }
+
+    function setupHTML() {
+      const maxImposters = Math.max(1, Math.floor(state.playerCount / 2));
+      return `
+        <div class="flex flex-col items-center justify-center min-h-screen p-4">
+          <div class="max-w-md w-full">
+            <h1 class="text-5xl font-bold text-center mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-500">IMPOSTER</h1>
+            <p class="text-gray-400 text-center mb-8">Pass & Play Mode</p>
+
+            <div class="bg-gray-800/50 backdrop-blur rounded-xl p-6 shadow-2xl space-y-6">
+              <div>
+                <h3 class="text-lg font-semibold mb-3 text-gray-300">Players</h3>
+                <div class="flex gap-2 justify-center flex-wrap">
+                  ${[3,4,5,6,7,8].map(n => `
+                    <button onclick="setPlayerCount(${n})" class="w-12 h-12 rounded-lg text-lg font-bold transition-all ${state.playerCount === n ? 'bg-purple-600 text-white' : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50'}">${n}</button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div>
+                <h3 class="text-lg font-semibold mb-3 text-gray-300">Imposters</h3>
+                <div class="flex gap-2 justify-center">
+                  ${[...Array(maxImposters)].map((_, i) => `
+                    <button onclick="setImposterCount(${i+1})" class="w-12 h-12 rounded-lg text-lg font-bold transition-all ${state.imposterCount === i+1 ? 'bg-red-600 text-white' : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50'}">${i+1}</button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <div>
+                <h3 class="text-lg font-semibold mb-3 text-gray-300">Category</h3>
+                <div class="grid grid-cols-3 gap-2">
+                  ${CATEGORIES.map(cat => `
+                    <button onclick="setCategory('${cat.id}')" class="p-3 rounded-lg text-sm font-medium transition-all ${state.category === cat.id ? 'bg-purple-600 text-white' : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50'}">
+                      <span class="text-xl">${cat.icon}</span>
+                      <div>${cat.name}</div>
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+
+              <button onclick="goToNames()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl font-bold text-lg">Next</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function namesHTML() {
+      return `
+        <div class="flex flex-col items-center justify-center min-h-screen p-4">
+          <div class="max-w-md w-full">
+            <h2 class="text-2xl font-bold text-center mb-6">Enter Player Names</h2>
+            <div class="bg-gray-800/50 backdrop-blur rounded-xl p-6 shadow-2xl space-y-3 mb-4">
+              ${state.players.map((p, i) => `
+                <input type="text" id="player${i}" value="${p.name}" placeholder="Player ${i+1}"
+                  class="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white" maxlength="15">
+              `).join('')}
+            </div>
+            <button onclick="startGame()" class="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 rounded-xl font-bold text-lg">Start Game</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function revealHTML() {
+      const player = state.players[state.currentPlayerIndex];
+      const isImposter = state.imposterIds.includes(state.currentPlayerIndex);
+
+      if (!state.showRole) {
+        return `
+          <div class="flex flex-col items-center justify-center min-h-screen p-4">
+            <div class="max-w-md w-full text-center">
+              <h2 class="text-3xl font-bold mb-4">${player.name}</h2>
+              <p class="text-gray-400 mb-8">Pass the device to ${player.name}</p>
+              <p class="text-gray-500 mb-8 text-sm">Make sure no one else is looking!</p>
+              <button onclick="showRole()" class="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl font-bold text-xl">Tap to See Your Role</button>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="flex flex-col items-center justify-center min-h-screen p-4">
+          <div class="max-w-md w-full text-center">
+            <h2 class="text-2xl font-bold mb-6">${player.name}</h2>
+            <div class="p-8 rounded-xl mb-8 ${isImposter ? 'bg-red-600/30 border-2 border-red-500' : 'bg-green-600/30 border-2 border-green-500'}">
+              ${isImposter ? `
+                <h3 class="text-3xl font-bold text-red-400 mb-2">You are the IMPOSTER!</h3>
+                <p class="text-gray-300">Try to blend in without knowing the word</p>
+              ` : `
+                <h3 class="text-xl font-bold text-green-400 mb-2">The word is:</h3>
+                <p class="text-5xl font-bold text-white">${state.word}</p>
+              `}
+            </div>
+            <button onclick="nextReveal()" class="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold">
+              ${state.currentPlayerIndex < state.players.length - 1 ? 'Next Player' : 'Start Hints'}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function hintsHTML() {
+      const player = state.players[state.currentPlayerIndex];
+
+      if (!state.showRole) {
+        return `
+          <div class="flex flex-col items-center justify-center min-h-screen p-4">
+            <div class="max-w-md w-full text-center">
+              <p class="text-gray-400 mb-2">Round ${state.round} - Hints</p>
+              <h2 class="text-3xl font-bold mb-4">${player.name}'s Turn</h2>
+              <p class="text-gray-400 mb-8">Pass the device to ${player.name}</p>
+              <button onclick="showRole()" class="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl font-bold text-xl">Tap to Enter Your Hint</button>
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="flex flex-col items-center justify-center min-h-screen p-4">
+          <div class="max-w-md w-full">
+            <div class="text-center mb-6">
+              <h2 class="text-2xl font-bold">${player.name}</h2>
+              <p class="text-gray-400">Enter a one-word hint</p>
+            </div>
+            <div class="bg-gray-800/50 backdrop-blur rounded-xl p-6 shadow-2xl">
+              <input type="text" id="hintInput" placeholder="Your hint..."
+                class="w-full px-4 py-3 bg-gray-700/50 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-center text-xl mb-4" maxlength="20" autofocus>
+              <button onclick="submitHint()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl font-bold">Submit Hint</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function discussionHTML() {
+      return `
+        <div class="flex flex-col items-center justify-center min-h-screen p-4">
+          <div class="max-w-md w-full">
+            <h2 class="text-2xl font-bold text-center mb-2">Discussion Time!</h2>
+            <p class="text-gray-400 text-center mb-6">Discuss who you think the imposter is</p>
+            <div class="bg-gray-800/50 backdrop-blur rounded-xl p-6 shadow-2xl mb-6">
+              <h3 class="font-semibold mb-4 text-gray-300">All Hints</h3>
+              <div class="space-y-2">
+                ${state.hints.map(h => `
+                  <div class="flex justify-between p-3 bg-gray-700/50 rounded-lg">
+                    <span class="text-purple-400 font-medium">${h.name}</span>
+                    <span class="font-bold">${h.hint}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            <button onclick="startVoting()" class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 rounded-xl font-bold">Start Voting</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function votingHTML() {
+      const player = state.players[state.currentPlayerIndex];
+
+      if (!state.showRole) {
+        return `
+          <div class="flex flex-col items-center justify-center min-h-screen p-4">
+            <div class="max-w-md w-full text-center">
+              <h2 class="text-3xl font-bold mb-4">${player.name}'s Vote</h2>
+              <p class="text-gray-400 mb-8">Pass the device to ${player.name}</p>
+              <button onclick="showRole()" class="w-full py-4 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 rounded-xl font-bold text-xl">Tap to Vote</button>
+            </div>
+          </div>
+        `;
+      }
+
+      const otherPlayers = state.players.filter((_, i) => i !== state.currentPlayerIndex);
+      return `
+        <div class="flex flex-col items-center justify-center min-h-screen p-4">
+          <div class="max-w-lg w-full">
+            <h2 class="text-2xl font-bold text-center mb-2">${player.name}</h2>
+            <p class="text-gray-400 text-center mb-6">Who is the imposter?</p>
+            <div class="space-y-3">
+              ${otherPlayers.map(p => `
+                <button onclick="submitVote(${p.id})" class="w-full p-4 rounded-xl text-left bg-gray-700/50 hover:bg-red-600/30 hover:border-red-500 border-2 border-transparent transition-all">
+                  <span class="font-medium text-lg">${p.name}</span>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function resultsHTML() {
+      const voteCounts = {};
+      Object.values(state.votes).forEach(v => { voteCounts[v] = (voteCounts[v] || 0) + 1; });
+
+      let maxVotes = 0, votedOut = null;
+      Object.entries(voteCounts).forEach(([id, count]) => {
+        if (count > maxVotes) { maxVotes = count; votedOut = parseInt(id); }
+      });
+
+      const votedOutIsImposter = state.imposterIds.includes(votedOut);
+      const imposterNames = state.imposterIds.map(id => state.players[id].name);
+      const sortedPlayers = [...state.players].map((p, i) => ({ ...p, score: state.scores[i] || 0 })).sort((a, b) => b.score - a.score);
+
+      return `
+        <div class="flex flex-col items-center justify-center min-h-screen p-4">
+          <div class="max-w-md w-full">
+            <div class="text-center p-6 rounded-xl mb-6 ${votedOutIsImposter ? 'bg-green-600/30 border-2 border-green-500' : 'bg-red-600/30 border-2 border-red-500'}">
+              <h2 class="text-2xl font-bold mb-2">${votedOutIsImposter ? 'Imposter Caught!' : 'Imposter Got Away!'}</h2>
+              <p class="text-xl mb-4">
+                ${imposterNames.length > 1 ? 'The imposters were: ' : 'The imposter was: '}
+                <span class="font-bold text-purple-400">${imposterNames.join(', ')}</span>
+              </p>
+              <p class="text-lg">The word was: <span class="font-bold">${state.word}</span></p>
+            </div>
+
+            <div class="bg-gray-800/50 rounded-xl p-4 mb-6">
+              <h3 class="font-semibold mb-3 text-gray-300">Scores</h3>
+              <div class="space-y-2">
+                ${sortedPlayers.map((p, i) => `
+                  <div class="flex justify-between p-3 rounded-lg ${state.imposterIds.includes(p.id) ? 'bg-red-600/20' : 'bg-gray-700/50'}">
+                    <span>${i === 0 ? '👑 ' : ''}${p.name}${state.imposterIds.includes(p.id) ? ' (Imposter)' : ''}</span>
+                    <span class="font-bold">${p.score}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <button onclick="nextRound()" class="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 rounded-xl font-bold">Next Round</button>
+              <button onclick="resetGame()" class="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-xl font-bold">New Game</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Actions
+    function setPlayerCount(n) {
+      state.playerCount = n;
+      if (state.imposterCount > Math.floor(n / 2)) state.imposterCount = Math.floor(n / 2);
+      render();
+    }
+
+    function setImposterCount(n) { state.imposterCount = n; render(); }
+    function setCategory(c) { state.category = c; render(); }
+
+    function goToNames() {
+      state.players = Array(state.playerCount).fill(null).map((_, i) => ({ id: i, name: '', score: 0 }));
+      state.scores = Object.fromEntries(Array(state.playerCount).fill(0).map((_, i) => [i, 0]));
+      state.phase = 'names';
+      render();
+    }
+
+    function startGame() {
+      // Get names from inputs
+      for (let i = 0; i < state.players.length; i++) {
+        const input = document.getElementById(`player${i}`);
+        state.players[i].name = input.value.trim() || `Player ${i + 1}`;
+      }
+
+      // Pick word and imposters
+      const words = WORDS[state.category];
+      state.word = words[Math.floor(Math.random() * words.length)];
+      const shuffled = [...Array(state.playerCount).keys()].sort(() => Math.random() - 0.5);
+      state.imposterIds = shuffled.slice(0, state.imposterCount);
+
+      state.currentPlayerIndex = 0;
+      state.showRole = false;
+      state.hints = [];
+      state.votes = {};
+      state.phase = 'reveal';
+      render();
+    }
+
+    function showRole() { state.showRole = true; render(); }
+
+    function nextReveal() {
+      if (state.currentPlayerIndex < state.players.length - 1) {
+        state.currentPlayerIndex++;
+        state.showRole = false;
+      } else {
+        state.currentPlayerIndex = 0;
+        state.showRole = false;
+        state.phase = 'hints';
+      }
+      render();
+    }
+
+    function submitHint() {
+      const input = document.getElementById('hintInput');
+      const hint = input.value.trim();
+      if (!hint) return;
+
+      state.hints.push({ playerIndex: state.currentPlayerIndex, name: state.players[state.currentPlayerIndex].name, hint });
+
+      if (state.currentPlayerIndex < state.players.length - 1) {
+        state.currentPlayerIndex++;
+        state.showRole = false;
+      } else {
+        state.phase = 'discussion';
+      }
+      render();
+    }
+
+    function startVoting() {
+      state.currentPlayerIndex = 0;
+      state.showRole = false;
+      state.votes = {};
+      state.phase = 'voting';
+      render();
+    }
+
+    function submitVote(votedId) {
+      state.votes[state.currentPlayerIndex] = votedId;
+
+      if (state.currentPlayerIndex < state.players.length - 1) {
+        state.currentPlayerIndex++;
+        state.showRole = false;
+        render();
+      } else {
+        // Calculate scores
+        const voteCounts = {};
+        Object.values(state.votes).forEach(v => { voteCounts[v] = (voteCounts[v] || 0) + 1; });
+
+        let maxVotes = 0, votedOut = null;
+        Object.entries(voteCounts).forEach(([id, count]) => {
+          if (count > maxVotes) { maxVotes = count; votedOut = parseInt(id); }
+        });
+
+        const votedOutIsImposter = state.imposterIds.includes(votedOut);
+
+        state.players.forEach((p, idx) => {
+          if (state.imposterIds.includes(idx)) {
+            if (!votedOutIsImposter) state.scores[idx] = (state.scores[idx] || 0) + 15;
+          } else {
+            if (state.imposterIds.includes(state.votes[idx])) state.scores[idx] = (state.scores[idx] || 0) + 10;
+          }
+        });
+
+        state.phase = 'results';
+        render();
+      }
+    }
+
+    function nextRound() {
+      const words = WORDS[state.category];
+      state.word = words[Math.floor(Math.random() * words.length)];
+      const shuffled = [...Array(state.playerCount).keys()].sort(() => Math.random() - 0.5);
+      state.imposterIds = shuffled.slice(0, state.imposterCount);
+
+      state.round++;
+      state.currentPlayerIndex = 0;
+      state.showRole = false;
+      state.hints = [];
+      state.votes = {};
+      state.phase = 'reveal';
+      render();
+    }
+
+    function resetGame() {
+      state = {
+        phase: 'setup',
+        playerCount: 4,
+        imposterCount: 1,
+        category: 'animals',
+        players: [],
+        currentPlayerIndex: 0,
+        showRole: false,
+        word: '',
+        imposterIds: [],
+        hints: [],
+        currentHint: '',
+        votes: {},
+        round: 1,
+        scores: {}
+      };
+      render();
+    }
+
+    function attachEvents() {
+      // Enter key for hint input
+      const hintInput = document.getElementById('hintInput');
+      if (hintInput) {
+        hintInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') submitHint();
+        });
+        hintInput.focus();
+      }
+    }
+
+    // Start
+    render();
+  </script>
+</body>
+</html>

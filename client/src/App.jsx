@@ -5,8 +5,9 @@ import { useSocket } from './hooks/useSocket';
 import Home from './components/Home';
 import Lobby from './components/Lobby';
 import Game from './components/Game';
+import PassAndPlay from './components/PassAndPlay';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || '';
 
 function AppContent() {
   const { socket, isConnected } = useSocket();
@@ -29,6 +30,10 @@ function AppContent() {
 
     socket.on('category-changed', ({ category }) => {
       updateState({ category });
+    });
+
+    socket.on('imposter-count-changed', ({ count }) => {
+      updateState({ imposterCount: count });
     });
 
     socket.on('game-started', (data) => {
@@ -118,6 +123,7 @@ function AppContent() {
       socket.off('player-joined');
       socket.off('player-left');
       socket.off('category-changed');
+      socket.off('imposter-count-changed');
       socket.off('game-started');
       socket.off('hint-submitted');
       socket.off('all-hints-complete');
@@ -140,9 +146,15 @@ function AppContent() {
         <Route path="/join/:shareId" element={<JoinByLink socket={socket} />} />
         <Route path="/lobby" element={<Lobby socket={socket} />} />
         <Route path="/game" element={<Game socket={socket} />} />
+        <Route path="/pass-and-play" element={<PassAndPlayWrapper />} />
       </Routes>
     </div>
   );
+}
+
+function PassAndPlayWrapper() {
+  const navigate = useNavigate();
+  return <PassAndPlay onBack={() => navigate('/')} />;
 }
 
 function JoinByLink({ socket }) {

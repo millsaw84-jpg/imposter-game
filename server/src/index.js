@@ -28,7 +28,14 @@ const app = express();
 const server = createServer(app);
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'];
+  : [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
+      'http://192.168.4.145:5173',
+      'http://192.168.4.145:5174'
+    ];
 
 const io = new Server(server, {
   cors: {
@@ -103,7 +110,8 @@ io.on('connection', (socket) => {
         name: p.name,
         score: p.score
       })),
-      category: room.category
+      category: room.category,
+      imposterCount: room.settings.imposterCount
     });
   });
 
@@ -115,6 +123,17 @@ io.on('connection', (socket) => {
 
     room.category = category;
     io.to(room.code).emit('category-changed', { category });
+    callback?.({ success: true });
+  });
+
+  socket.on('set-imposter-count', ({ count }, callback) => {
+    const room = getRoomByPlayerId(socket.id);
+    if (!room || room.hostId !== socket.id) {
+      return callback?.({ success: false, error: 'Not authorized' });
+    }
+
+    room.settings.imposterCount = count;
+    io.to(room.code).emit('imposter-count-changed', { count });
     callback?.({ success: true });
   });
 
@@ -136,17 +155,20 @@ io.on('connection', (socket) => {
     }
 
     const players = getConnectedPlayers(room);
+    const imposterIds = room.imposterIds || [];
     players.forEach(player => {
       const playerSocket = io.sockets.sockets.get(player.id);
+      const isImposter = imposterIds.includes(player.id);
       if (playerSocket) {
         playerSocket.emit('game-started', {
-          isImposter: player.id === room.imposterId,
-          word: player.id === room.imposterId ? null : room.currentWord,
+          isImposter,
+          word: isImposter ? null : room.currentWord,
           players: players.map(p => ({ id: p.id, name: p.name })),
           currentTurnId: players[0].id,
           round: room.currentRound,
           totalRounds: room.totalRounds,
-          category: room.category
+          category: room.category,
+          imposterCount: room.settings.imposterCount
         });
       }
     });
@@ -277,12 +299,14 @@ io.on('connection', (socket) => {
       io.to(room.code).emit('game-ended', result);
     } else {
       const players = getConnectedPlayers(room);
+      const imposterIds = room.imposterIds || [];
       players.forEach(player => {
         const playerSocket = io.sockets.sockets.get(player.id);
+        const isImposter = imposterIds.includes(player.id);
         if (playerSocket) {
           playerSocket.emit('round-started', {
-            isImposter: player.id === room.imposterId,
-            word: player.id === room.imposterId ? null : room.currentWord,
+            isImposter,
+            word: isImposter ? null : room.currentWord,
             currentTurnId: players[0].id,
             round: room.currentRound,
             totalRounds: room.totalRounds

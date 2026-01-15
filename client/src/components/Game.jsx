@@ -271,7 +271,10 @@ export default function Game({ socket }) {
               {results.imposterCaught ? 'Imposter Caught!' : 'Imposter Got Away!'}
             </h2>
             <p className="text-xl mb-4">
-              The imposter was <span className="font-bold text-purple-400">{results.imposterName}</span>
+              {results.imposterNames?.length > 1 ? 'The imposters were: ' : 'The imposter was: '}
+              <span className="font-bold text-purple-400">
+                {results.imposterNames?.join(', ') || results.imposterName}
+              </span>
             </p>
             <p className="text-lg">
               The word was: <span className="font-bold">{results.word}</span>
@@ -327,7 +330,7 @@ export default function Game({ socket }) {
                 >
                   <span>
                     {i === 0 && '👑 '}{player.name}
-                    {player.id === results.imposterId && ' (Imposter)'}
+                    {results.imposterIds?.includes(player.id) && ' (Imposter)'}
                   </span>
                   <span className="font-bold">{player.score}</span>
                 </div>

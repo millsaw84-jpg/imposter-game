@@ -19,6 +19,7 @@ export function GameProvider({ children }) {
     round: 0,
     totalRounds: 5,
     category: 'animals',
+    imposterCount: 1,
     scores: [],
     voteResults: null
   });
